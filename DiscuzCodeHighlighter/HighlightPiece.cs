@@ -17,7 +17,7 @@ namespace DiscuzCodeHighlighter
             this.Style = style;
             this.Index = match.Index;
             this.Length = match.Length;
-        }
+         }
 
         public override string ToString()
         {

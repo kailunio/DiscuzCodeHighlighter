@@ -13,6 +13,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.IO;
 using DiscuzCodeHighlighter.Languages;
+using System.Text.RegularExpressions;
 
 namespace DiscuzCodeHighlighter
 {
@@ -49,6 +50,7 @@ namespace DiscuzCodeHighlighter
             var pieces = lighter.Process(textCode.Code, lang);
 
             RenderCode(textCode.Code, pieces, lang);
+            ShowCodeForUbb(textCode.Code, pieces, lang);
 
             // 显示结果
             textCode.SetContent(_codeParagraph);
@@ -59,8 +61,6 @@ namespace DiscuzCodeHighlighter
             var paragraph = new Paragraph();
 
             int index = 0;
-            var sb = new StringBuilder();
-            sb.Append("[font=Consolas]");
             for (int i = 0; i < pieces.Count; i++)
             {
                 var piece = pieces[i];
@@ -68,15 +68,46 @@ namespace DiscuzCodeHighlighter
                 // 每个高亮之前的部分
                 var pieceCur = code.Substring(index, piece.Index - index);
                 paragraph.Inlines.Add(pieceCur);
-                sb.Append(pieceCur);
 
                 // 高亮的代码块
                 var span = new Span();
-                var color = lang.ColorPlans[piece.Style];
-                span.Foreground = new SolidColorBrush(color);
+                span.Foreground = new SolidColorBrush(lang.ColorPlans[piece.Style]);
+
                 pieceCur = code.Substring(piece.Index, piece.Length);
                 span.Inlines.Add(pieceCur);
                 paragraph.Inlines.Add(span);
+
+                index = piece.Index + piece.Length;
+
+                // 最后的部分
+                if (i == pieces.Count - 1)
+                {
+                    pieceCur = code.Substring(index, code.Length - index);
+                    paragraph.Inlines.Add(pieceCur);
+                }
+            }
+
+            _codeParagraph = paragraph;
+        }
+
+        void ShowCodeForUbb(string code, List<HighlightPiece> pieces, LanguageBase lang)
+        {
+            int index = 0;
+            var sb = new StringBuilder();
+            sb.Append("[font=Consolas]");
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                var piece = pieces[i];
+
+                // 每个高亮之前的部分
+                var pieceCur = ProcessUbbTag(code.Substring(index, piece.Index - index));
+                
+                sb.Append(pieceCur);
+
+                // 高亮的代码块
+                var color = lang.ColorPlans[piece.Style];
+                pieceCur = ProcessUbbTag(code.Substring(piece.Index, piece.Length));
+
                 sb.Append(string.Format(
                     "[color=#{0:x2}{1:x2}{2:x2}]{3}[/color]", color.R, color.G, color.B, pieceCur)
                 );
@@ -86,14 +117,30 @@ namespace DiscuzCodeHighlighter
                 // 最后的部分
                 if (i == pieces.Count - 1)
                 {
-                    pieceCur = code.Substring(index, code.Length - index);
-                    paragraph.Inlines.Add(pieceCur);
+                    pieceCur = ProcessUbbTag(code.Substring(index, code.Length - index));
+
                     sb.Append(pieceCur);
                 }
             }
             sb.Append("[/font]");
             _codeDiscuz = sb.ToString();
-            _codeParagraph = paragraph;
+        }
+
+        string ProcessUbbTag(string s)
+        {
+            // 处理可能存在的Ubb Tag
+            if (s.IndexOf('[') != -1 && s.IndexOf(']') != -1)
+            {
+                // 使用正则匹配
+                var re = new Regex(@"\[/?(?<tag>i)\]", RegexOptions.IgnoreCase);
+
+                if (re.IsMatch(s))
+                {
+                    s = re.Replace(s, @"[[i][/i]${tag}]");
+                }
+            }
+
+            return s;
         }
 
         private void radioUbb_Checked(object sender, RoutedEventArgs e)
